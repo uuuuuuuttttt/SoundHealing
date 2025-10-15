@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Solfeggio Healing Companion — Rev. AURorA Ute</title>
-  <meta name="description" content="Professional, privacy-first Solfeggio & binaural beats companion with mood-based auto-healing, diary, chakra hub, breathing coach, and nature-inspired soft-gold design." />
+  <meta name="description" content="Professional, privacy-first Solfeggio & binaural beats companion with mood-based auto-healing, diary, chakra hub with hand positions, breathing clock, and spiritual uplifting prompts in a nature-inspired soft-gold design." />
   <!-- Tailwind (no build setup needed) -->
   <script src="https://cdn.tailwindcss.com"></script>
   <!-- React 18 UMD + Babel for JSX-in-browser -->
@@ -33,14 +33,8 @@
     .glass{background:rgba(255,255,255,.6); backdrop-filter: blur(10px); border:1px solid rgba(255,255,255,.65)}
     .btn{border-radius:0.75rem; padding:0.6rem 1rem; font-weight:600}
     .brand{letter-spacing:.2px}
-    /* Breathing circle */
-    .breath-circle{ width:140px; height:140px; border-radius:9999px; border:2px solid rgba(0,0,0,.15);
-      background: radial-gradient(circle at 50% 50%, rgba(255,255,255,.8), rgba(255,255,255,.5));
-      transition: transform 1s ease;
-    }
-    .breath-in { transform: scale(1.05); }
-    .breath-hold{ transform: scale(1.0); }
-    .breath-out { transform: scale(0.92); }
+    /* Breathing clock */
+    .clock{ width:200px; height:200px }
   </style>
 </head>
 <body>
@@ -51,7 +45,7 @@
     const { useEffect, useMemo, useRef, useState } = React;
 
     /* ========================= Data & Mappings ========================= */
-    const STORAGE_KEY = "solfeggioPro.entries.v2";
+    const STORAGE_KEY = "solfeggioPro.entries.v3";
 
     const SOLFEGGIO = {
       174: { name: "174 Hz", desc: "grounding, comfort (anecdotal)" },
@@ -66,13 +60,13 @@
     };
 
     const CHAKRAS = [
-      { key: "root",   label: "Root",          color: "#b71c1c", freq: 396 },
-      { key: "sacral", label: "Sacral",        color: "#ef6c00", freq: 417 },
-      { key: "solar",  label: "Solar Plexus",  color: "#d4a017", freq: 528 },
-      { key: "heart",  label: "Heart",         color: "#2e7d32", freq: 639 },
-      { key: "throat", label: "Throat",        color: "#1e88e5", freq: 741 },
-      { key: "third",  label: "Third Eye",     color: "#5e35b1", freq: 852 },
-      { key: "crown",  label: "Crown",         color: "#6a1b9a", freq: 963 },
+      { key: "root",   label: "Root",          color: "#b71c1c", freq: 396, hand:"Place both hands on the lower belly or at the hips; feel weight into your feet." },
+      { key: "sacral", label: "Sacral",        color: "#ef6c00", freq: 417, hand:"One hand below the navel, one on the lower back; soften the pelvis." },
+      { key: "solar",  label: "Solar Plexus",  color: "#d4a017", freq: 528, hand:"Hands over the upper belly/diaphragm; invite warmth and confidence." },
+      { key: "heart",  label: "Heart",         color: "#2e7d32", freq: 639, hand:"Hands palm-over-palm at center of chest; breathe kindly." },
+      { key: "throat", label: "Throat",        color: "#1e88e5", freq: 741, hand:"One hand at the throat, one at upper back; relax the jaw and tongue." },
+      { key: "third",  label: "Third Eye",     color: "#5e35b1", freq: 852, hand:"Two fingers between the eyebrows; soften the forehead and eyes." },
+      { key: "crown",  label: "Crown",         color: "#6a1b9a", freq: 963, hand:"One hand hovering over the top of head, the other at the heart." },
     ];
 
     const MOOD_PRESETS = {
@@ -94,6 +88,16 @@
       Happy: ["I savor this joy and let it ripple out."],
       Unfocused: ["I return gently to what matters."],
     };
+
+    const SPIRIT_UPLIFT = [
+      "Your breath is a prayer; your steps are blessings.",
+      "I am guided, protected, and loved.",
+      "I choose faith over fear and love over doubt.",
+      "Light grows wherever I place my attention.",
+      "Today I become a calm river for myself and others.",
+      "I open my heart to grace, wisdom, and renewal.",
+      "I walk in faith; I speak with kindness; I act with courage.",
+    ];
 
     const SCENES = [
       { key:"Sleep",   desc:"Deep rest: 174 Hz + delta 2 Hz",      cfg:{freq:174,binauralHz:2} },
@@ -156,23 +160,49 @@
     const useAudio = ()=>{ const r=useRef(null); if(!r.current) r.current=new AudioEngine(); return r.current };
 
     /* ========================= Components ========================= */
-    function BreathingCoach(){
-      const [phase,setPhase] = useState('In'); // In → Hold → Out
-      useEffect(()=>{
-        let t=0; const id=setInterval(()=>{
-          // 4-6-8 pattern
-          t = (t+1)%18; // seconds in cycle
-          if(t<4) setPhase('In'); else if(t<10) setPhase('Hold'); else setPhase('Out');
-        },1000);
-        return ()=>clearInterval(id);
-      },[]);
+    function BreathingClock(){
+      // 4-6-8 cycle (In, Hold, Out) visualized as a clock with progress arc.
+      const IN=4, HOLD=6, OUT=8; const TOTAL=IN+HOLD+OUT; // 18s
+      const [t,setT] = useState(0); // seconds into cycle
+      useEffect(()=>{ const id=setInterval(()=>setT(v=>(v+1)%TOTAL),1000); return ()=>clearInterval(id); },[]);
+      let phase, secInPhase, phaseTotal;
+      if (t<IN){ phase='Inhale'; secInPhase=t; phaseTotal=IN; }
+      else if (t<IN+HOLD){ phase='Hold'; secInPhase=t-IN; phaseTotal=HOLD; }
+      else { phase='Exhale'; secInPhase=t-IN-HOLD; phaseTotal=OUT; }
+      const pct = (secInPhase+1)/phaseTotal; // progress within current phase
+
+      // color morph from green (#2e7d32 ~ hue 123) to purple (#6a1b9a ~ hue 283)
+      const hue = 123 + (283-123)*(t/TOTAL);
+      const stroke = `hsl(${hue},60%,45%)`;
+
+      const size=200, strokeW=10, r=(size/2)-strokeW-4, c=size/2;
+      const circumference = 2*Math.PI*r;
+      const dash = circumference*pct;
+
       return (
-        <div className="flex items-center gap-4">
-          <div className={`breath-circle ${phase==='In'?'breath-in':phase==='Hold'?'breath-hold':'breath-out'}`}></div>
+        <div className="flex items-center gap-5">
+          <svg className="clock" viewBox={`0 0 ${size} ${size}`}> 
+            <defs>
+              <radialGradient id="bgfade" cx="50%" cy="50%" r="60%">
+                <stop offset="0%" stopColor="rgba(255,255,255,.95)"/>
+                <stop offset="100%" stopColor="rgba(255,255,255,.55)"/>
+              </radialGradient>
+            </defs>
+            <circle cx={c} cy={c} r={r} fill="url(#bgfade)" stroke="rgba(0,0,0,.1)" strokeWidth="1"/>
+            {/* phase ticks */}
+            {Array.from({length:12}).map((_,i)=>{
+              const angle = (i/12)*2*Math.PI; const x1=c+(r-6)*Math.cos(angle); const y1=c+(r-6)*Math.sin(angle); const x2=c+(r-0)*Math.cos(angle); const y2=c+(r-0)*Math.sin(angle);
+              return <line key={i} x1={x1} y1={y1} x2={x2} y2={y2} stroke="rgba(0,0,0,.15)" strokeWidth="2"/>;
+            })}
+            {/* progress arc */}
+            <circle cx={c} cy={c} r={r} fill="none" stroke={stroke} strokeLinecap="round" strokeWidth={strokeW}
+              strokeDasharray={`${dash} ${circumference}`} transform={`rotate(-90 ${c} ${c})`} />
+            <text x={c} y={c-6} textAnchor="middle" fontSize="18" fill="#2a2a2a">{phase}</text>
+            <text x={c} y={c+18} textAnchor="middle" fontSize="12" fill="#555">{phase==='Inhale'?'Breathe in':phase==='Hold'?'Hold gently':'Breathe out'}</text>
+          </svg>
           <div>
             <div className="text-sm font-semibold">Breathing Coach</div>
             <div className="text-xs opacity-80">4s In • 6s Hold • 8s Out</div>
-            <div className="mt-1 text-sm">Now: <span className="font-semibold">{phase}</span></div>
           </div>
         </div>
       );
@@ -196,6 +226,23 @@
       );
     }
 
+    // Small inline SVG chakra picture generator
+    const ChakraPic = ({color,label}) => (
+      <svg width="80" height="80" viewBox="0 0 100 100" className="shrink-0">
+        <defs>
+          <radialGradient id={`rg-${label}`} cx="50%" cy="50%" r="70%">
+            <stop offset="0%" stopColor={color} stopOpacity=".2"/>
+            <stop offset="100%" stopColor={color} stopOpacity=".85"/>
+          </radialGradient>
+        </defs>
+        <circle cx="50" cy="50" r="40" fill={`url(#rg-${label})`} stroke={color} strokeWidth="2"/>
+        {Array.from({length:8}).map((_,i)=>{
+          const a=(i/8)*2*Math.PI; const r=34; const x=50+r*Math.cos(a); const y=50+r*Math.sin(a);
+          return <circle key={i} cx={x} cy={y} r="3" fill="white" stroke={color} strokeWidth="1"/>;
+        })}
+      </svg>
+    );
+
     /* ========================= Main App ========================= */
     function App(){
       const engine = useAudio();
@@ -213,10 +260,14 @@
       const [playing,setPlaying] = useState(false);
       const [left,setLeft] = useState(0);
       const [audioReady,setAudioReady] = useState(false);
+      const [spirit,setSpirit] = useState('');
 
       useEffect(()=>localStorage.setItem(STORAGE_KEY, JSON.stringify(entries)),[entries]);
       useEffect(()=>engine.setMaster(masterVol),[engine,masterVol]);
       useEffect(()=>{ if(!playing||left<=0) return; const id=setInterval(()=>setLeft(t=>{ if(t<=1){stop(); return 0} return t-1 }),1000); return ()=>clearInterval(id) },[playing,left]);
+
+      // Refresh spiritual uplifting message whenever tab changes
+      useEffect(()=>{ setSpirit( SPIRIT_UPLIFT[Math.floor(Math.random()*SPIRIT_UPLIFT.length)] ); },[tab]);
 
       const preset = useMemo(()=> MOOD_PRESETS[mood] || MOOD_PRESETS['Calm'], [mood]);
 
@@ -224,14 +275,44 @@
         const entry={id:crypto.randomUUID(),date:new Date().toISOString(),mood,notes,happy,sad,preset};
         setEntries(p=>[entry,...p]); setNotes(''); setHappy(''); setSad('');
       }
+      
+      function exportJSON(){
+        const dataStr = JSON.stringify(entries, null, 2);
+        const blob = new Blob([dataStr], {type: 'application/json'});
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `solfeggio-diary-${new Date().toISOString().split('T')[0]}.json`;
+        link.click();
+        URL.revokeObjectURL(url);
+      }
+
+      function importJSON(e){
+        const file = e.target.files?.[0];
+        if(!file) return;
+        const reader = new FileReader();
+        reader.onload = (evt) => {
+          try {
+            const imported = JSON.parse(evt.target.result);
+            if(Array.isArray(imported)){
+              setEntries(imported);
+              alert(`Imported ${imported.length} entries successfully.`);
+            } else {
+              alert('Invalid format: expected an array of entries.');
+            }
+          } catch(err) {
+            alert('Failed to parse JSON file.');
+          }
+        };
+        reader.readAsText(file);
+        e.target.value = ''; // reset input
+      }
+
       async function ensureAudio(){ await engine.ensure(); setAudioReady(true); }
       async function playAuto(){ if(!audioReady) await ensureAudio(); await engine.play({freq:preset.freq,binauralHz:preset.binauralHz,toneVolume:toneVol,noiseVolume:noiseVol,wave}); setPlaying(true); setLeft(Math.max(1,Math.floor(minutes*60))); }
       async function playChakra(freq){ if(!audioReady) await ensureAudio(); await engine.play({freq,binauralHz:0,toneVolume:toneVol,noiseVolume:noiseVol,wave}); setPlaying(true); setLeft(Math.max(1,Math.floor(minutes*60))); }
       async function playScene(cfg){ if(!audioReady) await ensureAudio(); await engine.play({...cfg,toneVolume:toneVol,noiseVolume:noiseVol,wave}); setPlaying(true); setLeft(Math.max(1,Math.floor(minutes*60))); }
       function stop(){ engine.stop(); setPlaying(false); }
-
-      function exportJSON(){ const b=new Blob([JSON.stringify(entries,null,2)],{type:'application/json'}); const u=URL.createObjectURL(b); const a=document.createElement('a'); a.href=u; a.download=`solfeggio-journal-${new Date().toISOString().slice(0,10)}.json`; a.click(); URL.revokeObjectURL(u); }
-      function importJSON(e){ const f=e.target.files?.[0]; if(!f) return; const r=new FileReader(); r.onload=()=>{ try{const d=JSON.parse(String(r.result||'[]')); if(Array.isArray(d)) setEntries(d)}catch{} }; r.readAsText(f); }
 
       const affKey = (mood==='Sad'?'Sad':mood==='Anxious'?'Anxious':mood==='Angry'?'Angry':mood==='Tired'?'Tired':mood==='Unfocused'?'Unfocused':mood==='Happy'?'Happy':'Calm');
       const todaysAff = (AFFIRMATIONS[affKey]||[])[0] || '';
@@ -256,15 +337,19 @@
             {/* Hero */}
             <section className="glass rounded-2xl p-6 md:p-8">
               <div className="grid md:grid-cols-3 gap-6 items-center">
-                <div className="md:col-span-2">
-                  <h2 className="text-xl md:text-2xl font-bold">Daily balance through sound, breath, and reflection.</h2>
-                  <p className="mt-2 text-sm opacity-80">Professional, privacy-first experience: your journal stays on your device. Choose a mood and let the app suggest supportive Solfeggio frequencies and optional binaural beats.</p>
+                <div className="md:col-span-2 space-y-3">
+                  <h2 className="text-xl md:text-2xl font-bold">Daily balance through sound, breath, reflection — and spiritual uplifting.</h2>
+                  <p className="text-sm opacity-80">Professional, privacy-first experience: your journal stays on your device. Choose a mood and let the app suggest supportive Solfeggio frequencies and optional binaural beats.</p>
                   {todaysAff && (
-                    <div className="mt-4 text-sm bg-white/70 rounded-xl px-4 py-3 border border-white">🌿 <em>Affirmation:</em> {todaysAff}</div>
+                    <div className="text-sm bg-white/70 rounded-xl px-4 py-3 border border-white">🌿 <em>Affirmation:</em> {todaysAff}</div>
                   )}
+                  {/* Spiritual uplifting that refreshes on screen change */}
+                  <div className="text-sm bg-white/80 rounded-xl px-4 py-3 border border-white">
+                    ✨ <em>Spiritual Uplifting:</em> {spirit}
+                  </div>
                 </div>
                 <div className="rounded-xl bg-white/60 border border-white p-4 flex items-center justify-center">
-                  <BreathingCoach/>
+                  <BreathingClock/>
                 </div>
               </div>
             </section>
@@ -321,7 +406,7 @@
                         </thead>
                         <tbody>
                           {entries.map(e=> (
-                            <tr key={e.id} className="border-top border-white">
+                            <tr key={e.id} className="border-t border-white">
                               <td className="py-2 pr-4 whitespace-nowrap">{new Date(e.date).toLocaleString()}</td>
                               <td className="py-2 pr-4">{e.mood}</td>
                               <td className="py-2 pr-4">{e.preset?.label}</td>
@@ -409,14 +494,21 @@
 
             {tab==='Chakras' && (
               <section className="glass rounded-2xl p-6">
-                <h3 className="text-lg font-semibold mb-3">Chakra Hub</h3>
-                <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                <h3 className="text-lg font-semibold mb-3">Chakra Hub (with hand positions)</h3>
+                <div className="grid md:grid-cols-2 gap-4">
                   {CHAKRAS.map(c => (
-                    <button key={c.key} onClick={()=>playChakra(c.freq)} className="rounded-2xl p-4 border border-white bg-white/70 text-left transition hover:bg-white">
-                      <div className="text-lg font-semibold" style={{color:c.color}}>{c.label}</div>
-                      <div className="text-sm opacity-80">{c.freq} Hz • {(SOLFEGGIO[c.freq]&&SOLFEGGIO[c.freq].desc)||'chakra tone'}</div>
-                      <div className="text-xs opacity-70 mt-1">Tap to play for the set session length.</div>
-                    </button>
+                    <div key={c.key} className="rounded-2xl p-4 border border-white bg-white/70 flex gap-4 items-start">
+                      <ChakraPic color={c.color} label={c.label}/>
+                      <div className="flex-1">
+                        <div className="text-lg font-semibold" style={{color:c.color}}>{c.label}</div>
+                        <div className="text-sm opacity-80">{c.freq} Hz • {(SOLFEGGIO[c.freq]&&SOLFEGGIO[c.freq].desc)||'chakra tone'}</div>
+                        <div className="text-xs opacity-80 mt-2"><strong>Hand position:</strong> {c.hand}</div>
+                        <div className="mt-3 flex gap-2">
+                          <button onClick={()=>playChakra(c.freq)} className="btn bg-amber-700 text-white hover:bg-amber-600">Play</button>
+                          <button onClick={stop} className="btn bg-slate-800 text-white hover:bg-slate-700">Stop</button>
+                        </div>
+                      </div>
+                    </div>
                   ))}
                 </div>
               </section>
