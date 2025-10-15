@@ -1,0 +1,475 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Solfeggio Healing Companion — Rev. AURorA Ute</title>
+  <meta name="description" content="Professional, privacy-first Solfeggio & binaural beats companion with mood-based auto-healing, diary, chakra hub, breathing coach, and nature-inspired soft-gold design." />
+  <!-- Tailwind (no build setup needed) -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- React 18 UMD + Babel for JSX-in-browser -->
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <style>
+    :root{
+      --gold-1:#f9edd1; /* soft highlight */
+      --gold-2:#f3e1b0; /* soft base */
+      --gold-3:#ebcf8f; /* accent */
+      --ink:#2a2a2a;    /* text */
+    }
+    html,body{height:100%}
+    body{
+      color:var(--ink);
+      background:
+        radial-gradient(1200px 600px at 80% -10%, var(--gold-1), transparent 60%),
+        radial-gradient(900px 600px at -10% 10%, var(--gold-2), transparent 55%),
+        linear-gradient(180deg, #f7e7c6 0%, #f0d9a1 60%, #e7cc8c 100%);
+    }
+    /* Nature overlay */
+    .nature-overlay{ position: fixed; inset: 0; pointer-events: none; opacity:.22; mix-blend-mode:multiply;
+      background-image:url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="1400" height="900" viewBox="0 0 1400 900"><g fill="none" stroke="%239a885a" stroke-width="1.1" opacity="0.6"><path d="M40,740 C120,640 210,640 290,740"/><path d="M210,700 c40,-60 90,-60 130,0"/><path d="M420,760 c60,-90 150,-90 210,0"/><path d="M760,690 c70,-70 150,-70 220,0"/><path d="M960,760 c80,-100 170,-100 260,0"/></g><g fill="%23a79a66" opacity="0.35"><circle cx="160" cy="120" r="26"/><circle cx="210" cy="160" r="18"/><circle cx="980" cy="140" r="24"/><circle cx="1040" cy="200" r="16"/></g></svg>');
+      background-repeat:no-repeat; background-size:cover; background-position:center; }
+    .glass{background:rgba(255,255,255,.6); backdrop-filter: blur(10px); border:1px solid rgba(255,255,255,.65)}
+    .btn{border-radius:0.75rem; padding:0.6rem 1rem; font-weight:600}
+    .brand{letter-spacing:.2px}
+    /* Breathing circle */
+    .breath-circle{ width:140px; height:140px; border-radius:9999px; border:2px solid rgba(0,0,0,.15);
+      background: radial-gradient(circle at 50% 50%, rgba(255,255,255,.8), rgba(255,255,255,.5));
+      transition: transform 1s ease;
+    }
+    .breath-in { transform: scale(1.05); }
+    .breath-hold{ transform: scale(1.0); }
+    .breath-out { transform: scale(0.92); }
+  </style>
+</head>
+<body>
+  <div class="nature-overlay"></div>
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useEffect, useMemo, useRef, useState } = React;
+
+    /* ========================= Data & Mappings ========================= */
+    const STORAGE_KEY = "solfeggioPro.entries.v2";
+
+    const SOLFEGGIO = {
+      174: { name: "174 Hz", desc: "grounding, comfort (anecdotal)" },
+      285: { name: "285 Hz", desc: "stability & renewal (anecdotal)" },
+      396: { name: "396 Hz", desc: "release fear/guilt (anecdotal)" },
+      417: { name: "417 Hz", desc: "facilitate change (anecdotal)" },
+      528: { name: "528 Hz", desc: "transformation/love (anecdotal)" },
+      639: { name: "639 Hz", desc: "relationships/harmony (anecdotal)" },
+      741: { name: "741 Hz", desc: "expression/clarity (anecdotal)" },
+      852: { name: "852 Hz", desc: "awareness/intuition (anecdotal)" },
+      963: { name: "963 Hz", desc: "oneness/crown (anecdotal)" },
+    };
+
+    const CHAKRAS = [
+      { key: "root",   label: "Root",          color: "#b71c1c", freq: 396 },
+      { key: "sacral", label: "Sacral",        color: "#ef6c00", freq: 417 },
+      { key: "solar",  label: "Solar Plexus",  color: "#d4a017", freq: 528 },
+      { key: "heart",  label: "Heart",         color: "#2e7d32", freq: 639 },
+      { key: "throat", label: "Throat",        color: "#1e88e5", freq: 741 },
+      { key: "third",  label: "Third Eye",     color: "#5e35b1", freq: 852 },
+      { key: "crown",  label: "Crown",         color: "#6a1b9a", freq: 963 },
+    ];
+
+    const MOOD_PRESETS = {
+      "Calm":      { freq: 528, binauralHz: 0,  label: "Calm → 528 Hz" },
+      "Happy":     { freq: 528, binauralHz: 0,  label: "Happy → 528 Hz" },
+      "Sad":       { freq: 528, binauralHz: 4,  label: "Sad → 528 Hz + 4 Hz (theta)" },
+      "Anxious":   { freq: 396, binauralHz: 4,  label: "Anxious → 396 Hz + 4 Hz" },
+      "Angry":     { freq: 741, binauralHz: 10, label: "Angry → 741 Hz + 10 Hz (alpha)" },
+      "Tired":     { freq: 174, binauralHz: 2,  label: "Tired → 174 Hz + 2 Hz (delta)" },
+      "Unfocused": { freq: 852, binauralHz: 15, label: "Unfocused → 852 Hz + 15 Hz (beta)" },
+    };
+
+    const AFFIRMATIONS = {
+      Sad: ["I give myself permission to feel and to heal.","I am held in love as I move through this."],
+      Anxious: ["I breathe in calm; I breathe out tension.","In this moment, I am safe and present."],
+      Angry: ["I release what I cannot control.","I choose clarity and compassion now."],
+      Tired: ["Rest is productive; my body is wise.","I soften and allow renewal."],
+      Calm: ["Peace expands with every breath."],
+      Happy: ["I savor this joy and let it ripple out."],
+      Unfocused: ["I return gently to what matters."],
+    };
+
+    const SCENES = [
+      { key:"Sleep",   desc:"Deep rest: 174 Hz + delta 2 Hz",      cfg:{freq:174,binauralHz:2} },
+      { key:"Focus",   desc:"Clear mind: 852 Hz + beta 15 Hz",     cfg:{freq:852,binauralHz:15} },
+      { key:"Release", desc:"Let go: 396 Hz + theta 4 Hz",          cfg:{freq:396,binauralHz:4} },
+      { key:"Heart",   desc:"Open heart: 639 Hz (no binaural)",     cfg:{freq:639,binauralHz:0} },
+    ];
+
+    /* ========================= Audio Engine ========================= */
+    class AudioEngine {
+      constructor(){
+        this.ctx=null; this.master=null; this.running=false;
+        this.tone=null; this.toneGain=null;
+        this.left=null; this.right=null; this.leftGain=null; this.rightGain=null;
+        this.noise=null; this.noiseGain=null;
+      }
+      async ensure(){
+        if(!this.ctx){
+          const AC = window.AudioContext || window.webkitAudioContext; this.ctx = new AC();
+          this.master = this.ctx.createGain(); this.master.gain.value = 0.6; this.master.connect(this.ctx.destination);
+        }
+        if(this.ctx.state === 'suspended') await this.ctx.resume();
+      }
+      setMaster(v){ if(this.master) this.master.gain.value = v; }
+      stop(){
+        const kill = (n)=>{ if(n){ try{n.stop()}catch{} n.disconnect() } };
+        kill(this.tone); this.tone=null; if(this.toneGain){this.toneGain.disconnect(); this.toneGain=null}
+        kill(this.left); kill(this.right); this.left=this.right=null; if(this.leftGain){this.leftGain.disconnect(); this.leftGain=null} if(this.rightGain){this.rightGain.disconnect(); this.rightGain=null}
+        kill(this.noise); this.noise=null; if(this.noiseGain){this.noiseGain.disconnect(); this.noiseGain=null}
+        this.running=false;
+      }
+      async play({freq=528, binauralHz=0, toneVolume=.85, noiseVolume=0, wave='sine'}){
+        await this.ensure(); this.stop();
+        // main tone
+        this.tone = this.ctx.createOscillator(); this.tone.type=wave; this.tone.frequency.value=freq;
+        this.toneGain = this.ctx.createGain(); this.toneGain.gain.value=toneVolume;
+        this.tone.connect(this.toneGain).connect(this.master); this.tone.start();
+        // binaural
+        if(binauralHz>0){
+          const L=this.ctx.createOscillator(), R=this.ctx.createOscillator(); L.type=wave; R.type=wave;
+          L.frequency.value=freq - binauralHz/2; R.frequency.value=freq + binauralHz/2;
+          const gL=this.ctx.createGain(), gR=this.ctx.createGain(); gL.gain.value=toneVolume*.5; gR.gain.value=toneVolume*.5;
+          const panL=this.ctx.createStereoPanner(); panL.pan.value=-1; const panR=this.ctx.createStereoPanner(); panR.pan.value=1;
+          L.connect(gL).connect(panL).connect(this.master); R.connect(gR).connect(panR).connect(this.master);
+          L.start(); R.start(); this.left=L; this.right=R; this.leftGain=gL; this.rightGain=gR;
+        }
+        // white noise (gentle)
+        if(noiseVolume>0){
+          const size=2*this.ctx.sampleRate, buf=this.ctx.createBuffer(1,size,this.ctx.sampleRate), d=buf.getChannelData(0);
+          for(let i=0;i<size;i++) d[i]=Math.random()*2-1;
+          const src=this.ctx.createBufferSource(); src.buffer=buf; src.loop=true;
+          const g=this.ctx.createGain(); g.gain.value=noiseVolume;
+          const lp=this.ctx.createBiquadFilter(); lp.type='lowpass'; lp.frequency.value=2000;
+          src.connect(lp).connect(g).connect(this.master); src.start(); this.noise=src; this.noiseGain=g;
+        }
+        this.running=true;
+      }
+    }
+
+    const useAudio = ()=>{ const r=useRef(null); if(!r.current) r.current=new AudioEngine(); return r.current };
+
+    /* ========================= Components ========================= */
+    function BreathingCoach(){
+      const [phase,setPhase] = useState('In'); // In → Hold → Out
+      useEffect(()=>{
+        let t=0; const id=setInterval(()=>{
+          // 4-6-8 pattern
+          t = (t+1)%18; // seconds in cycle
+          if(t<4) setPhase('In'); else if(t<10) setPhase('Hold'); else setPhase('Out');
+        },1000);
+        return ()=>clearInterval(id);
+      },[]);
+      return (
+        <div className="flex items-center gap-4">
+          <div className={`breath-circle ${phase==='In'?'breath-in':phase==='Hold'?'breath-hold':'breath-out'}`}></div>
+          <div>
+            <div className="text-sm font-semibold">Breathing Coach</div>
+            <div className="text-xs opacity-80">4s In • 6s Hold • 8s Out</div>
+            <div className="mt-1 text-sm">Now: <span className="font-semibold">{phase}</span></div>
+          </div>
+        </div>
+      );
+    }
+
+    function ConsentBanner({onEnable}){
+      const [open,setOpen] = useState(true);
+      if(!open) return null;
+      return (
+        <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-20 max-w-3xl w-[95%]">
+          <div className="glass rounded-2xl p-4 shadow-lg">
+            <div className="text-sm">
+              <strong>Wellness Notice.</strong> This app is for relaxation, education, and self‑reflection only. It is not medical or psychological treatment. Listen comfortably and stop if you feel discomfort.
+            </div>
+            <div className="mt-2 flex flex-wrap gap-3">
+              <button className="btn bg-emerald-700 text-white hover:bg-emerald-600" onClick={async()=>{await onEnable(); setOpen(false);}}>I Understand • Enable Audio</button>
+              <button className="btn bg-slate-800 text-white hover:bg-slate-700" onClick={()=>setOpen(false)}>Dismiss</button>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    /* ========================= Main App ========================= */
+    function App(){
+      const engine = useAudio();
+      const [tab,setTab] = useState('Diary');
+      const [entries,setEntries] = useState(()=>{ try{return JSON.parse(localStorage.getItem(STORAGE_KEY)||'[]')}catch{return []} });
+      const [mood,setMood] = useState('Calm');
+      const [notes,setNotes] = useState('');
+      const [happy,setHappy] = useState('');
+      const [sad,setSad] = useState('');
+      const [minutes,setMinutes] = useState(12);
+      const [masterVol,setMasterVol] = useState(.65);
+      const [toneVol,setToneVol] = useState(.85);
+      const [noiseVol,setNoiseVol] = useState(0);
+      const [wave,setWave] = useState('sine');
+      const [playing,setPlaying] = useState(false);
+      const [left,setLeft] = useState(0);
+      const [audioReady,setAudioReady] = useState(false);
+
+      useEffect(()=>localStorage.setItem(STORAGE_KEY, JSON.stringify(entries)),[entries]);
+      useEffect(()=>engine.setMaster(masterVol),[engine,masterVol]);
+      useEffect(()=>{ if(!playing||left<=0) return; const id=setInterval(()=>setLeft(t=>{ if(t<=1){stop(); return 0} return t-1 }),1000); return ()=>clearInterval(id) },[playing,left]);
+
+      const preset = useMemo(()=> MOOD_PRESETS[mood] || MOOD_PRESETS['Calm'], [mood]);
+
+      function save(){
+        const entry={id:crypto.randomUUID(),date:new Date().toISOString(),mood,notes,happy,sad,preset};
+        setEntries(p=>[entry,...p]); setNotes(''); setHappy(''); setSad('');
+      }
+      async function ensureAudio(){ await engine.ensure(); setAudioReady(true); }
+      async function playAuto(){ if(!audioReady) await ensureAudio(); await engine.play({freq:preset.freq,binauralHz:preset.binauralHz,toneVolume:toneVol,noiseVolume:noiseVol,wave}); setPlaying(true); setLeft(Math.max(1,Math.floor(minutes*60))); }
+      async function playChakra(freq){ if(!audioReady) await ensureAudio(); await engine.play({freq,binauralHz:0,toneVolume:toneVol,noiseVolume:noiseVol,wave}); setPlaying(true); setLeft(Math.max(1,Math.floor(minutes*60))); }
+      async function playScene(cfg){ if(!audioReady) await ensureAudio(); await engine.play({...cfg,toneVolume:toneVol,noiseVolume:noiseVol,wave}); setPlaying(true); setLeft(Math.max(1,Math.floor(minutes*60))); }
+      function stop(){ engine.stop(); setPlaying(false); }
+
+      function exportJSON(){ const b=new Blob([JSON.stringify(entries,null,2)],{type:'application/json'}); const u=URL.createObjectURL(b); const a=document.createElement('a'); a.href=u; a.download=`solfeggio-journal-${new Date().toISOString().slice(0,10)}.json`; a.click(); URL.revokeObjectURL(u); }
+      function importJSON(e){ const f=e.target.files?.[0]; if(!f) return; const r=new FileReader(); r.onload=()=>{ try{const d=JSON.parse(String(r.result||'[]')); if(Array.isArray(d)) setEntries(d)}catch{} }; r.readAsText(f); }
+
+      const affKey = (mood==='Sad'?'Sad':mood==='Anxious'?'Anxious':mood==='Angry'?'Angry':mood==='Tired'?'Tired':mood==='Unfocused'?'Unfocused':mood==='Happy'?'Happy':'Calm');
+      const todaysAff = (AFFIRMATIONS[affKey]||[])[0] || '';
+
+      return (
+        <div className="min-h-screen relative">
+          <header className="glass sticky top-0 z-10">
+            <div className="max-w-6xl mx-auto px-6 py-5 flex items-center justify-between">
+              <div>
+                <h1 className="text-2xl md:text-3xl font-extrabold brand">Solfeggio Healing Companion</h1>
+                <p className="text-sm opacity-80">By Rev. AURorA Ute — Certified Hypnotist & Spiritual Life Coach</p>
+              </div>
+              <nav className="flex flex-wrap gap-2 text-sm font-semibold">
+                {['Diary','Session','Chakras','Library','About'].map(t=> (
+                  <button key={t} onClick={()=>setTab(t)} className={`px-3 py-2 rounded-lg ${tab===t?'bg-white/70':'hover:bg-white/50'}`}>{t}</button>
+                ))}
+              </nav>
+            </div>
+          </header>
+
+          <main className="max-w-6xl mx-auto px-6 py-8 space-y-8">
+            {/* Hero */}
+            <section className="glass rounded-2xl p-6 md:p-8">
+              <div className="grid md:grid-cols-3 gap-6 items-center">
+                <div className="md:col-span-2">
+                  <h2 className="text-xl md:text-2xl font-bold">Daily balance through sound, breath, and reflection.</h2>
+                  <p className="mt-2 text-sm opacity-80">Professional, privacy-first experience: your journal stays on your device. Choose a mood and let the app suggest supportive Solfeggio frequencies and optional binaural beats.</p>
+                  {todaysAff && (
+                    <div className="mt-4 text-sm bg-white/70 rounded-xl px-4 py-3 border border-white">🌿 <em>Affirmation:</em> {todaysAff}</div>
+                  )}
+                </div>
+                <div className="rounded-xl bg-white/60 border border-white p-4 flex items-center justify-center">
+                  <BreathingCoach/>
+                </div>
+              </div>
+            </section>
+
+            {tab==='Diary' && (
+              <section className="grid md:grid-cols-2 gap-6">
+                <div className="glass rounded-2xl p-6">
+                  <h3 className="text-lg font-semibold">Daily Diary</h3>
+                  <div className="mt-3 grid gap-3">
+                    <label className="text-sm">Mood</label>
+                    <select value={mood} onChange={e=>setMood(e.target.value)} className="bg-white/70 rounded-xl p-2 outline-none">
+                      {Object.keys(MOOD_PRESETS).map(m=> <option key={m} value={m}>{m}</option>)}
+                    </select>
+                    <p className="text-xs opacity-80">Suggested: <span className="font-medium">{preset.label}</span></p>
+
+                    <label className="text-sm mt-2">What are your thoughts today?</label>
+                    <textarea value={notes} onChange={e=>setNotes(e.target.value)} rows={5} className="bg-white/70 rounded-xl p-3 outline-none" placeholder="Write freely; no judgment." />
+
+                    <label className="text-sm">What made you happy?</label>
+                    <input value={happy} onChange={e=>setHappy(e.target.value)} className="bg-white/70 rounded-xl p-2 outline-none" placeholder="A small moment, a smile, nature..." />
+
+                    <label className="text-sm">What felt sad or heavy?</label>
+                    <input value={sad} onChange={e=>setSad(e.target.value)} className="bg-white/70 rounded-xl p-2 outline-none" placeholder="Name it gently." />
+
+                    <div className="flex flex-wrap gap-3 mt-3">
+                      <button onClick={save} className="btn bg-emerald-700 text-white hover:bg-emerald-600">Save Entry</button>
+                      {!playing ? (
+                        <button onClick={playAuto} className="btn bg-indigo-700 text-white hover:bg-indigo-600">Start Healing</button>
+                      ) : (
+                        <button onClick={stop} className="btn bg-rose-700 text-white hover:bg-rose-600">Stop</button>
+                      )}
+                    </div>
+                    {playing && <p className="text-xs opacity-80">Playing • {left}s left</p>}
+                    <p className="text-[11px] opacity-70 mt-2">Tip: lower volume if you notice tension; add a little white noise on the <em>Session</em> tab.</p>
+                  </div>
+                </div>
+
+                <div className="glass rounded-2xl p-6">
+                  <h3 className="text-lg font-semibold">Your Journal</h3>
+                  {entries.length===0 ? (
+                    <p className="text-sm opacity-80 mt-2">No entries yet. Write your first reflection and press <em>Save Entry</em>.</p>
+                  ) : (
+                    <div className="mt-3 overflow-x-auto">
+                      <table className="min-w-full text-sm">
+                        <thead>
+                          <tr className="text-left opacity-80">
+                            <th className="py-2 pr-4">Date</th>
+                            <th className="py-2 pr-4">Mood</th>
+                            <th className="py-2 pr-4">Preset</th>
+                            <th className="py-2 pr-4">Happy</th>
+                            <th className="py-2 pr-4">Sad/Heavy</th>
+                            <th className="py-2 pr-4">Notes</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {entries.map(e=> (
+                            <tr key={e.id} className="border-top border-white">
+                              <td className="py-2 pr-4 whitespace-nowrap">{new Date(e.date).toLocaleString()}</td>
+                              <td className="py-2 pr-4">{e.mood}</td>
+                              <td className="py-2 pr-4">{e.preset?.label}</td>
+                              <td className="py-2 pr-4">{e.happy}</td>
+                              <td className="py-2 pr-4">{e.sad}</td>
+                              <td className="py-2 pr-4 max-w-xl">{e.notes}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                      <div className="mt-3 flex gap-3">
+                        <button onClick={exportJSON} className="btn bg-amber-700 text-white hover:bg-amber-600">Export JSON</button>
+                        <label className="btn bg-amber-800 text-white hover:bg-amber-700 cursor-pointer">Import JSON
+                          <input type="file" accept="application/json" className="hidden" onChange={importJSON}/>
+                        </label>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </section>
+            )}
+
+            {tab==='Session' && (
+              <section className="grid md:grid-cols-2 gap-6">
+                <div className="glass rounded-2xl p-6">
+                  <h3 className="text-lg font-semibold">Session Controls</h3>
+                  <div className="grid gap-4 mt-3">
+                    <div className="flex items-center gap-3">
+                      <label className="text-sm w-40">Length (minutes)</label>
+                      <input aria-label="Session length in minutes" type="number" min={1} max={180} value={minutes} onChange={e=>setMinutes(parseInt(e.target.value||'10'))} className="bg-white/70 rounded-xl p-2 w-28 outline-none" />
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <label className="text-sm w-40">Master Volume</label>
+                      <input aria-label="Master volume" type="range" min={0} max={1} step={0.01} value={masterVol} onChange={e=>setMasterVol(parseFloat(e.target.value))} />
+                      <span className="text-xs">{Math.round(masterVol*100)}%</span>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <label className="text-sm w-40">Tone Volume</label>
+                      <input aria-label="Tone volume" type="range" min={0} max={1} step={0.01} value={toneVol} onChange={e=>setToneVol(parseFloat(e.target.value))} />
+                      <span className="text-xs">{Math.round(toneVol*100)}%</span>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <label className="text-sm w-40">White Noise</label>
+                      <input aria-label="White noise level" type="range" min={0} max={0.5} step={0.01} value={noiseVol} onChange={e=>setNoiseVol(parseFloat(e.target.value))} />
+                      <span className="text-xs">{Math.round(noiseVol*100)}%</span>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <label className="text-sm w-40">Waveform</label>
+                      <select aria-label="Waveform" value={wave} onChange={e=>setWave(e.target.value)} className="bg-white/70 rounded-xl p-2 outline-none">
+                        <option value="sine">Sine (soft)</option>
+                        <option value="triangle">Triangle</option>
+                        <option value="sawtooth">Saw</option>
+                        <option value="square">Square</option>
+                      </select>
+                    </div>
+                    <div className="flex gap-3 flex-wrap">
+                      {!playing ? (
+                        <button onClick={playAuto} className="btn bg-indigo-700 text-white hover:bg-indigo-600">Play Suggested</button>
+                      ) : (
+                        <button onClick={stop} className="btn bg-rose-700 text-white hover:bg-rose-600">Stop</button>
+                      )}
+                      {SCENES.map(s=> (
+                        <button key={s.key} onClick={()=>playScene(s.cfg)} className="btn bg-amber-700 text-white hover:bg-amber-600">{s.key}</button>
+                      ))}
+                    </div>
+                    {playing && <p className="text-xs opacity-70">Playing • {left}s remaining</p>}
+                  </div>
+                </div>
+
+                <div className="glass rounded-2xl p-6">
+                  <h3 className="text-lg font-semibold">Suggested for "{mood}"</h3>
+                  <p className="text-sm opacity-80">{preset.label}. Add white noise if you prefer a softer edge.</p>
+                  <div className="mt-3 grid grid-cols-2 gap-3">
+                    {Object.entries(SOLFEGGIO).map(([f,meta])=> (
+                      <div key={f} className="bg-white/70 rounded-xl p-3 border border-white">
+                        <div className="font-semibold">{meta.name}</div>
+                        <div className="text-xs opacity-80">{meta.desc}</div>
+                        <button onClick={()=>playChakra(parseFloat(f))} className="mt-2 btn bg-amber-700 text-white hover:bg-amber-600 w-full">Play {f} Hz</button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </section>
+            )}
+
+            {tab==='Chakras' && (
+              <section className="glass rounded-2xl p-6">
+                <h3 className="text-lg font-semibold mb-3">Chakra Hub</h3>
+                <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                  {CHAKRAS.map(c => (
+                    <button key={c.key} onClick={()=>playChakra(c.freq)} className="rounded-2xl p-4 border border-white bg-white/70 text-left transition hover:bg-white">
+                      <div className="text-lg font-semibold" style={{color:c.color}}>{c.label}</div>
+                      <div className="text-sm opacity-80">{c.freq} Hz • {(SOLFEGGIO[c.freq]&&SOLFEGGIO[c.freq].desc)||'chakra tone'}</div>
+                      <div className="text-xs opacity-70 mt-1">Tap to play for the set session length.</div>
+                    </button>
+                  ))}
+                </div>
+              </section>
+            )}
+
+            {tab==='Library' && (
+              <section className="glass rounded-2xl p-6">
+                <h3 className="text-lg font-semibold">Tone Library</h3>
+                <p className="text-sm opacity-80 mb-3">Browse Solfeggio associations often used in sound-wellness communities (not medical claims).</p>
+                <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-3">
+                  {Object.keys(SOLFEGGIO).map((f)=> (
+                    <div key={f} className="rounded-xl border border-white bg-white/70 p-3">
+                      <div className="font-medium">{SOLFEGGIO[f].name}</div>
+                      <div className="text-xs opacity-80">{SOLFEGGIO[f].desc}</div>
+                      <div className="mt-2 flex gap-2">
+                        <button onClick={()=>playChakra(parseFloat(f))} className="btn bg-amber-700 text-white hover:bg-amber-600">Play</button>
+                        <button onClick={stop} className="btn bg-slate-800 text-white hover:bg-slate-700">Stop</button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </section>
+            )}
+
+            {tab==='About' && (
+              <section className="glass rounded-2xl p-6 space-y-4">
+                <h3 className="text-lg font-semibold">About • Legal • Connect</h3>
+                <div className="text-sm space-y-3">
+                  <p><strong>Purpose.</strong> This companion supports relaxation and mindful reflection using Solfeggio tones and optional binaural beats. It is privacy-first: your diary entries remain in your browser's local storage unless you export them.</p>
+                  <p><strong>Disclaimer.</strong> This app is for relaxation, education, and self‑reflection only. It does not diagnose, treat, or cure any condition and is not a substitute for professional medical, psychological, or therapeutic care. Use at your own discretion and at comfortable volume levels. If you experience discomfort, stop immediately. By using this app, you agree that you are solely responsible for your choices and outcomes. Rev. AURorA Ute and contributors are not responsible for results of using or not using this app.</p>
+                  <p><strong>Data & Privacy.</strong> No accounts. No analytics. No servers. All entries are stored locally on your device. You may export or import your journal as JSON.</p>
+                  <p><strong>Contact & Community.</strong><br/>
+                    Connect with <strong>Rev. AURorA Ute</strong> — Certified Hypnotist & Spiritual Life Coach.<br/>
+                    YouTube: <a className="underline" href="https://www.youtube.com/@aurora-ute" target="_blank" rel="noreferrer">@aurora-ute</a><br/>
+                    Facebook: <em>Rev. AURorA Ute / AuraLand Spiritual Ministry</em>
+                  </p>
+                  <p className="text-xs opacity-70">© {new Date().getFullYear()} Rev. AURorA Ute. All rights reserved.</p>
+                </div>
+              </section>
+            )}
+          </main>
+
+          <footer className="max-w-6xl mx-auto px-6 pb-10 text-xs opacity-80">
+            Crafted with care • Nature‑inspired soft gold design • Privacy‑first
+          </footer>
+
+          {!audioReady && <ConsentBanner onEnable={ensureAudio}/>} 
+        </div>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+  </script>
+</body>
+</html>
+
